@@ -4,7 +4,7 @@ Este projeto é um MVP de sistema de chat interno, onde todas as mensagens são 
 
 ---
 
-## 📋 Funcionalidades
+## Funcionalidades
 
 - Autenticação JWT
 - Sistema de permissões: usuário normal e admin
@@ -16,7 +16,7 @@ Este projeto é um MVP de sistema de chat interno, onde todas as mensagens são 
 
 ---
 
-## 🚀 Tecnologias
+## Tecnologias
 
 - Django 5
 - Django REST Framework
@@ -27,7 +27,7 @@ Este projeto é um MVP de sistema de chat interno, onde todas as mensagens são 
 
 ---
 
-## 🛠 Como rodar o projeto
+## Como rodar o projeto
 
 **Pré-requisitos**:
 - Docker
@@ -41,7 +41,12 @@ Este projeto é um MVP de sistema de chat interno, onde todas as mensagens são 
 git clone https://github.com/seu-usuario/chat-mvp.git
 cd chat-mvp
 
+**Monte o ambiente de desenvolvimento**
 docker-compose up --build
 
-docker compose run web python manage.py migrate
+** Crie um usuário administrador**
 docker compose run web python manage.py createsuperuser
+
+** Caso queira rodar os testes**
+docker compose run web python manage.py test
+```

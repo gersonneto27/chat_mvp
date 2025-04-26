@@ -63,7 +63,13 @@ class MessageCreateView(APIView):
 
     def post(self, request, room_id):
         content = request.data.get('content')
-        room = Room.objects.get(id=room_id)
+        try:
+            room = Room.objects.get(id=room_id)
+        except Room.DoesNotExist:
+            return Response({'detail': 'Room not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        if request.user not in room.members.all():
+            return Response({'detail': 'You are not a member of this room.'}, status=status.HTTP_403_FORBIDDEN)
 
         message = Message.objects.create(
             room=room,
@@ -75,7 +81,7 @@ class MessageCreateView(APIView):
         from .tasks import moderate_message
         moderate_message.delay(message.id)
 
-        return Response({'detail': 'Message sent for moderation.'})
+        return Response({'detail': 'Message sent for moderation.'}, status=status.HTTP_201_CREATED)
 
 def login_view(request):
     if request.method == 'POST':
