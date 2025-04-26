@@ -49,4 +49,6 @@ docker compose run web python manage.py createsuperuser
 
 ** Caso queira rodar os testes**
 docker compose run web python manage.py test
+
+**Caso queira tornar o usuário criado em admin mudar no django admin**
 ```
