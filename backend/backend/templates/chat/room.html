@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Sala de Chat {{ room_id }}</title>
+  <style>
+    #messages {
+      height: 400px;
+      overflow-y: auto;
+      border: 1px solid #ccc;
+      padding: 10px;
+      margin-bottom: 10px;
+    }
+    .system-message {
+      color: #666;
+      font-style: italic;
+      font-size: 0.9em;
+    }
+    .pending-message {
+      opacity: 0.7;
+    }
+    .message-time {
+      font-size: 0.8em;
+      color: #999;
+      margin-left: 5px;
+    }
+    .action-buttons {
+      margin-top: 15px;
+      display: flex;
+      gap: 10px;
+    }
+    .button {
+      padding: 8px 15px;
+      cursor: pointer;
+      border-radius: 4px;
+      font-weight: bold;
+    }
+    .exit-room {
+      background-color: #f0ad4e;
+      border: 1px solid #eea236;
+      color: white;
+    }
+    .logout {
+      background-color: #d9534f;
+      border: 1px solid #d43f3a;
+      color: white;
+    }
+  </style>
+</head>
+<body>
+  <h1>Chat na Sala {{ room_id }}</h1>
+
+  <div id="messages"></div>
+
+  <input type="text" id="messageInput" placeholder="Digite sua mensagem">
+  <button onclick="sendMessage()">Enviar</button>
+
+  <div class="action-buttons">
+    <button class="button exit-room" onclick="exitRoom()">Sair da Sala</button>
+    <button class="button logout" onclick="logout()">Sair do Login</button>
+  </div>
+
+  <h2>Membros Online (<span id="memberCount">0</span>)</h2>
+  <div id="members"></div>
+
+  <script>
+    const roomId = "{{ room_id }}";
+    const accessToken = "{{ access_token }}";
+    const currentUsername = "{{ username }}";
+
+    let socket = null;
+    let reconnectInterval = null;
+    
+    function connectWebSocket() {
+      socket = new WebSocket(`ws://${window.location.host}/ws/chat/${roomId}/`);
+
+      socket.onopen = function () {
+        console.log("Conectado ao WebSocket!");
+        clearInterval(reconnectInterval);
+        document.getElementById('messages').innerHTML += `
+          <div class="system-message">Conectado ao chat.</div>
+        `;
+      };
+
+      socket.onmessage = function (event) {
+        const data = JSON.parse(event.data);
+        console.log("Mensagem recebida:", data);
+
+        const messagesDiv = document.getElementById('messages');
+        const shouldScroll = messagesDiv.scrollTop + messagesDiv.clientHeight >= messagesDiv.scrollHeight - 50;
+
+        if (data.type === 'chat_message') {
+          handleChatMessage(data.message);
+        } else if (data.type === 'system_message') {
+          appendSystemMessage(data.message);
+        } else if (data.type === 'members_list') {
+          updateMembersList(data.members);
+        } else if (data.type === 'history_messages') {
+
+          data.messages.forEach(msg => {
+            handleChatMessage(msg);
+          });
+        }
+
+        if (shouldScroll) {
+          messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+      };
+
+      socket.onclose = function (e) {
+        console.log("Desconectado do WebSocket.", e.reason);
+        appendSystemMessage("Desconectado do chat. Tentando reconectar...");
+        
+        if (!reconnectInterval) {
+          reconnectInterval = setInterval(() => {
+            console.log("Tentando reconectar...");
+            connectWebSocket();
+          }, 5000);
+        }
+      };
+
+      socket.onerror = function (err) {
+        console.error('Erro de WebSocket:', err);
+        appendSystemMessage("Erro de conexão");
+      };
+    }
+
+    function formatTime(timestamp) {
+      if (!timestamp) return '';
+      const date = new Date(timestamp);
+      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+
+    function handleChatMessage(msg) {
+      const pendingId = `msg-${msg.id}`;
+      let existing = document.getElementById(pendingId);
+      const timeStr = formatTime(msg.timestamp);
+      
+      if (existing) {
+        if (msg.status === 'approved') {
+          existing.innerHTML = `
+            <b>${msg.user}:</b> ${msg.content}
+            <span class="message-time">${timeStr}</span>
+          `;
+          existing.classList.remove('pending-message');
+        } else if (msg.status === 'rejected') {
+          existing.innerHTML = `
+            <b>${msg.user}:</b> <i style="color: red;">Mensagem removida pela moderação</i>
+            <span class="message-time">${timeStr}</span>
+          `;
+        }
+      } else {
+        const p = document.createElement('p');
+        p.id = pendingId;
+        
+        if (msg.status === 'pending') {
+          p.classList.add('pending-message');
+          p.innerHTML = `
+            <b>${msg.user}:</b> ${msg.content} <i style="color: gray;">(aguardando moderação...)</i>
+            <span class="message-time">${timeStr}</span>
+          `;
+        } else if (msg.status === 'approved') {
+          p.innerHTML = `
+            <b>${msg.user}:</b> ${msg.content}
+            <span class="message-time">${timeStr}</span>
+          `;
+        } else {
+          p.innerHTML = `
+            <b>${msg.user}:</b> <i style="color: red;">Mensagem removida pela moderação</i>
+            <span class="message-time">${timeStr}</span>
+          `;
+        }
+        
+        document.getElementById('messages').appendChild(p);
+      }
+    }
+
+    function appendSystemMessage(message) {
+      const div = document.createElement('div');
+      div.className = 'system-message';
+      div.textContent = message;
+      document.getElementById('messages').appendChild(div);
+    }
+
+    function updateMembersList(members) {
+      const membersDiv = document.getElementById('members');
+      membersDiv.innerHTML = '';
+      
+      members.forEach(member => {
+        const el = document.createElement('p');
+        el.textContent = `${member.username} (${member.role})`;
+        if (member.username === currentUsername) {
+          el.style.fontWeight = 'bold';
+        }
+        membersDiv.appendChild(el);
+      });
+      
+      document.getElementById('memberCount').textContent = members.length;
+    }
+
+    function sendMessage() {
+      if (!socket || socket.readyState !== WebSocket.OPEN) {
+        appendSystemMessage("Não foi possível enviar a mensagem: desconectado");
+        return;
+      }
+      
+      const content = document.getElementById('messageInput').value;
+      if (!content.trim()) return;
+
+      try {
+        socket.send(JSON.stringify({
+          'type': 'send_message',
+          'content': content
+        }));
+        
+        document.getElementById('messageInput').value = '';
+      } catch (e) {
+        console.error("Erro ao enviar mensagem:", e);
+        appendSystemMessage("Erro ao enviar mensagem");
+      }
+    }
+
+    function exitRoom() {
+      if (socket) {
+        socket.close();
+      }
+
+      window.location.href = "/dashboard/";
+    }
+
+    function logout() {
+      if (socket) {
+        socket.close();
+      }
+
+      window.location.href = "/logout/";
+    }
+
+    document.getElementById('messageInput').addEventListener('keypress', function(e) {
+      if (e.key === 'Enter') {
+        sendMessage();
+      }
+    });
+
+    document.addEventListener('DOMContentLoaded', function() {
+      connectWebSocket();
+    });
+  </script>
+</body>
+</html>

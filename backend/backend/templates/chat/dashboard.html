@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Dashboard de Salas</title>
+</head>
+<body>
+    <h1>Salas Disponíveis</h1>
+
+    {% if is_admin %}
+    <h2>Criar Nova Sala</h2>
+    <form method="post" action="{% url 'create_room' %}">
+        {% csrf_token %}
+        <input type="text" name="name" placeholder="Nome da sala" required>
+        <label>
+            <input type="checkbox" name="is_private"> Privada
+        </label>
+        <button type="submit">Criar Sala</button>
+    </form>
+    {% endif %}
+
+    <hr>
+
+    {% for room in rooms %}
+        <p>
+            <b>{{ room.name }}</b>
+            {% if room.is_private %}(Privada){% endif %}
+            <a href="{% url 'chat_room_by_id' room.id %}">Entrar</a>
+        </p>
+    {% empty %}
+        <p>Nenhuma sala criada ainda.</p>
+    {% endfor %}
+</body>
+</html>

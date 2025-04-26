@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Chat MVP</title>
+</head>
+<body>
+    <h1>Chat MVP</h1>
+
+    <div id="login">
+        <h2>Login</h2>
+        <input id="username" placeholder="Username">
+        <input id="password" placeholder="Password" type="password">
+        <button onclick="login()">Login</button>
+    </div>
+
+    <div id="chat" style="display: none;">
+        <h2>Escolher Sala</h2>
+        <input id="roomId" placeholder="Room ID">
+        <button onclick="connect()">Conectar</button>
+
+        <h3>Mensagens</h3>
+        <div id="messages"></div>
+
+        <input id="messageInput" placeholder="Digite sua mensagem">
+        <button onclick="sendMessage()">Enviar</button>
+
+        <h3>Membros Online</h3>
+        <div id="members"></div>
+    </div>
+
+    <script>
+        let socket;
+        let accessToken;
+
+        function login() {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+
+            fetch('/api/login/', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({username, password})
+            })
+            .then(response => response.json())
+            .then(data => {
+                accessToken = data.access;
+                document.getElementById('login').style.display = 'none';
+                document.getElementById('chat').style.display = 'block';
+            })
+            .catch(error => console.error('Erro no login:', error));
+        }
+
+        function connect() {
+            const roomId = document.getElementById('roomId').value;
+
+            socket = new WebSocket(`ws://localhost:8000/ws/room/${roomId}/`);
+
+            socket.onopen = function() {
+                console.log('Conectado!');
+            };
+
+            socket.onmessage = function(e) {
+                const data = JSON.parse(e.data);
+                if (data.type === 'chat_message') {
+                    const msg = data.message;
+                    document.getElementById('messages').innerHTML += `<p><b>${msg.user}:</b> ${msg.content}</p>`;
+                }
+                if (data.type === 'members_list') {
+                    document.getElementById('members').innerHTML = '';
+                    data.members.forEach(member => {
+                        document.getElementById('members').innerHTML += `<p>${member.username} (${member.role})</p>`;
+                    });
+                }
+            };
+
+            socket.onclose = function() {
+                console.log('Desconectado!');
+            };
+        }
+
+        function sendMessage() {
+            const content = document.getElementById('messageInput').value;
+            const roomId = document.getElementById('roomId').value;
+
+            fetch(`/api/rooms/${roomId}/messages/send/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${accessToken}`
+                },
+                body: JSON.stringify({content})
+            })
+            .then(response => {
+                document.getElementById('messageInput').value = '';
+                console.log('Mensagem enviada para moderação!');
+            })
+            .catch(error => console.error('Erro ao enviar mensagem:', error));
+        }
+    </script>
+</body>
+</html>
